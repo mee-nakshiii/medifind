@@ -1,14 +1,11 @@
 import sqlite3
 
-connection = sqlite3.connect("medifind.db")
+conn = sqlite3.connect("medifind.db")
+cur = conn.cursor()
 
-cursor = connection.cursor()
+cur.execute("SELECT * FROM pharmacies")
 
-cursor.execute("SELECT * FROM medicines")
-
-rows = cursor.fetchall()
-
-for row in rows:
+for row in cur.fetchall():
     print(row)
 
-connection.close()
+conn.close()

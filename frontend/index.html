@@ -154,329 +154,390 @@
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    <script>
+<script>
 
-        let map = L.map('map').setView(
-            [10.5276, 76.2144],
-            13
+let map = L.map('map').setView(
+    [10.5276, 76.2144],
+    13
+);
+
+L.tileLayer(
+    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        attribution:
+            '&copy; OpenStreetMap contributors'
+    }
+).addTo(map);
+
+let markers = [];
+
+let userLat = null;
+let userLon = null;
+
+/* --------------------
+   USER LOCATION
+-------------------- */
+
+navigator.geolocation.getCurrentPosition(
+    function(position) {
+
+        userLat = position.coords.latitude;
+        userLon = position.coords.longitude;
+
+        console.log(
+            "User Location:",
+            userLat,
+            userLon
         );
 
-        L.tileLayer(
-            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            {
-                attribution:
-                    '&copy; OpenStreetMap contributors'
-            }
-        ).addTo(map);
+    },
+    function(error) {
 
-        let markers = [];
+        console.log(
+            "Location access denied"
+        );
 
-        let userLat = null;
-        let userLon = null;
+    }
+);
 
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
+/* --------------------
+   DISTANCE
+-------------------- */
 
-                userLat = position.coords.latitude;
-                userLon = position.coords.longitude;
+function calculateDistance(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+) {
 
-                console.log(
-                    "User Location:",
+    const R = 6371;
+
+    const dLat =
+        (lat2 - lat1) *
+        Math.PI / 180;
+
+    const dLon =
+        (lon2 - lon1) *
+        Math.PI / 180;
+
+    const a =
+
+        Math.sin(dLat / 2) *
+        Math.sin(dLat / 2)
+
+        +
+
+        Math.cos(
+            lat1 * Math.PI / 180
+        )
+
+        *
+
+        Math.cos(
+            lat2 * Math.PI / 180
+        )
+
+        *
+
+        Math.sin(dLon / 2)
+
+        *
+
+        Math.sin(dLon / 2);
+
+    const c =
+
+        2 *
+
+        Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1 - a)
+        );
+
+    return R * c;
+}
+
+/* --------------------
+   HISTORY
+-------------------- */
+
+function loadHistory() {
+
+    const historyDiv =
+        document.getElementById(
+            "history"
+        );
+
+    const history =
+        JSON.parse(
+            localStorage.getItem(
+                "searchHistory"
+            )
+        ) || [];
+
+    historyDiv.innerHTML = "";
+
+    history.forEach(item => {
+
+        historyDiv.innerHTML += `
+            <p
+                style="
+                    cursor:pointer;
+                    color:#2563eb;
+                    font-weight:bold;
+                "
+                onclick="searchFromHistory('${item}')"
+            >
+                ${item}
+            </p>
+        `;
+
+    });
+
+}
+
+function searchFromHistory(medicine) {
+
+    document.getElementById(
+        "medicineInput"
+    ).value = medicine;
+
+    searchMedicine();
+}
+
+/* --------------------
+   SEARCH
+-------------------- */
+
+async function searchMedicine() {
+
+    const medicine =
+        document.getElementById(
+            "medicineInput"
+        ).value.trim();
+
+    if (!medicine) {
+
+        alert(
+            "Please enter a medicine name"
+        );
+
+        return;
+    }
+
+    let history =
+        JSON.parse(
+            localStorage.getItem(
+                "searchHistory"
+            )
+        ) || [];
+
+    history = history.filter(
+        item =>
+        item.toLowerCase() !==
+        medicine.toLowerCase()
+    );
+
+    history.unshift(medicine);
+
+    history = history.slice(0, 5);
+
+    localStorage.setItem(
+        "searchHistory",
+        JSON.stringify(history)
+    );
+
+    loadHistory();
+
+    const resultsDiv =
+        document.getElementById(
+            "results"
+        );
+
+    resultsDiv.innerHTML = `
+        <div class="card">
+            <h3>Searching pharmacies...</h3>
+        </div>
+    `;
+
+    const response =
+        await fetch(
+            `http://127.0.0.1:5000/api/search?medicine=${medicine}`
+        );
+
+    const data =
+        await response.json();
+
+    if (
+        userLat !== null &&
+        userLon !== null
+    ) {
+
+        data.sort((a, b) => {
+
+            const distanceA =
+                calculateDistance(
                     userLat,
-                    userLon
+                    userLon,
+                    a.latitude,
+                    a.longitude
                 );
 
-            },
-            function(error) {
-
-                console.log(
-                    "Location access denied"
+            const distanceB =
+                calculateDistance(
+                    userLat,
+                    userLon,
+                    b.latitude,
+                    b.longitude
                 );
 
-            }
-        );
+            return distanceA - distanceB;
 
-        function calculateDistance(
-            lat1,
-            lon1,
-            lat2,
-            lon2
+        });
+
+    }
+
+    resultsDiv.innerHTML = "";
+
+    markers.forEach(marker =>
+        map.removeLayer(marker)
+    );
+
+    markers = [];
+
+    if (data.length === 0) {
+
+        resultsDiv.innerHTML =
+            "<div class='card'>No pharmacies found.</div>";
+
+        return;
+    }
+
+    data.forEach(item => {
+
+        let stockClass =
+            "stock-low";
+
+        let stockText =
+            "🟡 Low Stock";
+
+        if (item.stock > 20) {
+
+            stockClass =
+                "stock-high";
+
+            stockText =
+                "🟢 In Stock";
+        }
+
+        let distanceText =
+            "Distance unavailable";
+
+        if (
+            userLat !== null &&
+            userLon !== null
         ) {
 
-            const R = 6371;
-
-            const dLat =
-                (lat2 - lat1) *
-                Math.PI / 180;
-
-            const dLon =
-                (lon2 - lon1) *
-                Math.PI / 180;
-
-            const a =
-
-                Math.sin(dLat / 2) *
-                Math.sin(dLat / 2)
-
-                +
-
-                Math.cos(
-                    lat1 * Math.PI / 180
-                )
-
-                *
-
-                Math.cos(
-                    lat2 * Math.PI / 180
-                )
-
-                *
-
-                Math.sin(dLon / 2)
-
-                *
-
-                Math.sin(dLon / 2);
-
-            const c =
-
-                2 *
-
-                Math.atan2(
-                    Math.sqrt(a),
-                    Math.sqrt(1 - a)
+            const distance =
+                calculateDistance(
+                    userLat,
+                    userLon,
+                    item.latitude,
+                    item.longitude
                 );
 
-            return R * c;
+            distanceText =
+                distance.toFixed(2)
+                + " km away";
         }
 
-        function loadHistory() {
+        resultsDiv.innerHTML += `
 
-            const historyDiv =
-                document.getElementById(
-                    "history"
-                );
+            <div class="card">
 
-            const history =
-                JSON.parse(
-                    localStorage.getItem(
-                        "searchHistory"
-                    )
-                ) || [];
+                <h3>${item.pharmacy}</h3>
 
-            historyDiv.innerHTML = "";
+                <p>${item.address}</p>
 
-            history.forEach(item => {
+                <p>📍 ${distanceText}</p>
 
-                historyDiv.innerHTML += `
-                    <p>${item}</p>
-                `;
-
-            });
-
-        }
-
-        async function searchMedicine() {
-
-            const medicine =
-                document.getElementById(
-                    "medicineInput"
-                ).value;
-
-            if (!medicine) {
-
-                alert(
-                    "Please enter a medicine name"
-                );
-
-                return;
-            }
-
-            let history =
-                JSON.parse(
-                    localStorage.getItem(
-                        "searchHistory"
-                    )
-                ) || [];
-
-            history.unshift(medicine);
-
-            history = history.slice(0, 5);
-
-            localStorage.setItem(
-                "searchHistory",
-                JSON.stringify(history)
-            );
-
-            loadHistory();
-
-            const resultsDiv =
-                document.getElementById(
-                    "results"
-                );
-
-            resultsDiv.innerHTML = `
-                <div class="card">
-                    <h3>Searching pharmacies...</h3>
-                </div>
-            `;
-
-            const response =
-                await fetch(
-                    `http://127.0.0.1:5000/api/search?medicine=${medicine}`
-                );
-
-            const data =
-                await response.json();
-
-            if (
-                userLat !== null &&
-                userLon !== null
-            ) {
-
-                data.sort((a, b) => {
-
-                    const distanceA =
-                        calculateDistance(
-                            userLat,
-                            userLon,
-                            a.latitude,
-                            a.longitude
-                        );
-
-                    const distanceB =
-                        calculateDistance(
-                            userLat,
-                            userLon,
-                            b.latitude,
-                            b.longitude
-                        );
-
-                    return distanceA - distanceB;
-
-                });
-
-            }
-
-            resultsDiv.innerHTML = "";
-
-            markers.forEach(marker =>
-                map.removeLayer(marker)
-            );
-
-            markers = [];
-
-            if (data.length === 0) {
-
-                resultsDiv.innerHTML =
-                    "<div class='card'>No pharmacies found.</div>";
-
-                return;
-            }
-
-            data.forEach(item => {
-
-                let stockClass =
-                    "stock-low";
-
-                let stockText =
-                    "🟡 Low Stock";
-
-                if (item.stock > 20) {
-
-                    stockClass =
-                        "stock-high";
-
-                    stockText =
-                        "🟢 In Stock";
-                }
-
-                let distanceText =
-                    "Distance unavailable";
-
-                if (
-                    userLat !== null &&
-                    userLon !== null
-                ) {
-
-                    const distance =
-                        calculateDistance(
-                            userLat,
-                            userLon,
-                            item.latitude,
-                            item.longitude
-                        );
-
-                    distanceText =
-                        distance.toFixed(2)
-                        + " km away";
-                }
-
-                resultsDiv.innerHTML += `
-
-                    <div class="card">
-
-                        <h3>${item.pharmacy}</h3>
-
-                        <p>${item.address}</p>
-
-                        <p>📍 ${distanceText}</p>
-
-                        <p class="${stockClass}">
-                            ${stockText}
-                        </p>
-
-                        <p>
-                            Quantity:
-                            ${item.stock}
-                        </p>
-
-                    </div>
-
-                `;
-
-                const marker =
-                    L.marker([
-                        item.latitude,
-                        item.longitude
-                    ]).addTo(map);
-
-                marker.bindPopup(`
-
-                    <b>${item.pharmacy}</b>
-
-                    <br>
-
-                    📍 ${distanceText}
-
-                    <br>
-
+                <p class="${stockClass}">
                     ${stockText}
+                </p>
 
-                    <br>
-
+                <p>
                     Quantity:
                     ${item.stock}
+                </p>
 
-                `);
+            </div>
 
-                markers.push(marker);
+        `;
 
-            });
+        const marker =
+            L.marker([
+                item.latitude,
+                item.longitude
+            ]).addTo(map);
 
-            map.setView(
-                [
-                    data[0].latitude,
-                    data[0].longitude
-                ],
-                14
-            );
+        marker.bindPopup(`
+
+            <b>${item.pharmacy}</b>
+
+            <br>
+
+            📍 ${distanceText}
+
+            <br>
+
+            ${stockText}
+
+            <br>
+
+            Quantity:
+            ${item.stock}
+
+        `);
+
+        markers.push(marker);
+
+    });
+
+    map.setView(
+        [
+            data[0].latitude,
+            data[0].longitude
+        ],
+        14
+    );
+
+}
+
+/* --------------------
+   ENTER KEY SEARCH
+-------------------- */
+
+document
+    .getElementById("medicineInput")
+    .addEventListener(
+        "keypress",
+        function(event) {
+
+            if (
+                event.key === "Enter"
+            ) {
+
+                searchMedicine();
+
+            }
 
         }
+    );
 
-        loadHistory();
+loadHistory();
 
-    </script>
+</script>
 
 </body>
 </html>
