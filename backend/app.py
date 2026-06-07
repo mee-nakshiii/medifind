@@ -62,6 +62,7 @@ def search_medicine():
     JOIN pharmacies
         ON inventory.pharmacy_id = pharmacies.id
     WHERE medicines.name LIKE ?
+    AND inventory.stock > 0
     """, ('%' + medicine_name + '%',))
 
     results = cursor.fetchall()

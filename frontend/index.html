@@ -104,7 +104,35 @@
             margin: 5px 0;
             color: #555;
         }
+        @media (max-width: 768px) {
 
+    .main {
+        flex-direction: column;
+    }
+
+    .results-panel {
+        width: 100%;
+    }
+
+    .map-panel {
+        width: 100%;
+    }
+
+    #map {
+        height: 400px;
+    }
+
+    input {
+        width: 100%;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+    }
+
+    button {
+        width: 100%;
+    }
+
+}
     </style>
 
 </head>
@@ -134,15 +162,23 @@
 
             <h3>Recent Searches</h3>
 
+            <button onclick="clearHistory()">
+               Clear History
+            </button>
+
             <div id="history"></div>
 
         </div>
 
         <div class="main">
 
-            <div class="results-panel">
-                <div id="results"></div>
-            </div>
+           <div class="results-panel">
+
+           <div id="resultCount"></div>
+
+           <div id="results"></div>
+
+        </div>
 
             <div class="map-panel">
                 <div id="map"></div>
@@ -306,6 +342,15 @@ function searchFromHistory(medicine) {
     searchMedicine();
 }
 
+function clearHistory() {
+
+    localStorage.removeItem(
+        "searchHistory"
+    );
+
+    loadHistory();
+
+}
 /* --------------------
    SEARCH
 -------------------- */
@@ -368,7 +413,10 @@ async function searchMedicine() {
 
     const data =
         await response.json();
-
+    document.getElementById(
+    "resultCount"
+    ).innerHTML =
+    `<h3>Found ${data.length} pharmacies</h3>`;
     if (
         userLat !== null &&
         userLon !== null
