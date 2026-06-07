@@ -17,25 +17,25 @@ Response:
 ]
 }
 
----
+
 
 ## Get Pharmacy Details
 
 GET /api/pharmacy/{id}
 
----
+
 
 ## Add Medicine
 
 POST /api/medicine
 
----
+
 
 ## Update Inventory
 
 POST /api/inventory
 
----
+
 
 ## Pharmacy Login
 

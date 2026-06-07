@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MediFind</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet/dist/leaflet.css"
+    />
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background-color: #f5f7fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+        }
+
+        .search-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        input {
+            padding: 12px;
+            width: 300px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .main {
+            display: flex;
+            gap: 20px;
+        }
+
+        .results-panel {
+            width: 35%;
+        }
+
+        .map-panel {
+            width: 65%;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stock-high {
+            color: green;
+            font-weight: bold;
+        }
+
+        .stock-low {
+            color: orange;
+            font-weight: bold;
+        }
+
+        #map {
+            height: 600px;
+            border-radius: 12px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="header">
+            <h1>MediFind</h1>
+            <p>Find medicines nearby instantly</p>
+        </div>
+
+        <div class="search-box">
+
+            <input
+                type="text"
+                id="medicineInput"
+                placeholder="Enter medicine name"
+            >
+
+            <button onclick="searchMedicine()">
+                Search
+            </button>
+
+        </div>
+
+        <div class="main">
+
+            <div class="results-panel">
+                <div id="results"></div>
+            </div>
+
+            <div class="map-panel">
+                <div id="map"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script>
+
+        let map = L.map('map').setView(
+            [10.5276, 76.2144],
+            13
+        );
+
+        L.tileLayer(
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            {
+                attribution:
+                    '&copy; OpenStreetMap contributors'
+            }
+        ).addTo(map);
+
+        let markers = [];
+
+        let userLat = null;
+        let userLon = null;
+
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+
+                userLat = position.coords.latitude;
+                userLon = position.coords.longitude;
+
+                console.log(
+                    "User Location:",
+                    userLat,
+                    userLon
+                );
+
+            },
+            function(error) {
+
+                console.log(
+                    "Location access denied"
+                );
+
+            }
+        );
+
+        function calculateDistance(
+            lat1,
+            lon1,
+            lat2,
+            lon2
+        ) {
+
+            const R = 6371;
+
+            const dLat =
+                (lat2 - lat1) *
+                Math.PI / 180;
+
+            const dLon =
+                (lon2 - lon1) *
+                Math.PI / 180;
+
+            const a =
+
+                Math.sin(dLat / 2) *
+                Math.sin(dLat / 2)
+
+                +
+
+                Math.cos(
+                    lat1 * Math.PI / 180
+                )
+
+                *
+
+                Math.cos(
+                    lat2 * Math.PI / 180
+                )
+
+                *
+
+                Math.sin(dLon / 2)
+
+                *
+
+                Math.sin(dLon / 2);
+
+            const c =
+
+                2 *
+
+                Math.atan2(
+                    Math.sqrt(a),
+                    Math.sqrt(1 - a)
+                );
+
+            return R * c;
+        }
+
+        async function searchMedicine() {
+
+            const medicine =
+                document.getElementById(
+                    "medicineInput"
+                ).value;
+
+            if (!medicine) {
+
+                alert(
+                    "Please enter a medicine name"
+                );
+
+                return;
+            }
+
+            const response =
+                await fetch(
+                    `http://127.0.0.1:5000/api/search?medicine=${medicine}`
+                );
+
+            const data =
+                await response.json();
+
+            const resultsDiv =
+                document.getElementById(
+                    "results"
+                );
+
+            resultsDiv.innerHTML = "";
+
+            markers.forEach(marker =>
+                map.removeLayer(marker)
+            );
+
+            markers = [];
+
+            if (data.length === 0) {
+
+                resultsDiv.innerHTML =
+                    "<div class='card'>No pharmacies found.</div>";
+
+                return;
+            }
+
+            data.forEach(item => {
+
+                let stockClass =
+                    "stock-low";
+
+                let stockText =
+                    "🟡 Low Stock";
+
+                if (item.stock > 20) {
+
+                    stockClass =
+                        "stock-high";
+
+                    stockText =
+                        "🟢 In Stock";
+                }
+
+                let distanceText =
+                    "Distance unavailable";
+
+                if (
+                    userLat !== null &&
+                    userLon !== null
+                ) {
+
+                    const distance =
+                        calculateDistance(
+                            userLat,
+                            userLon,
+                            item.latitude,
+                            item.longitude
+                        );
+
+                    distanceText =
+                        distance.toFixed(2)
+                        + " km away";
+                }
+
+                resultsDiv.innerHTML += `
+
+                    <div class="card">
+
+                        <h3>
+                            ${item.pharmacy}
+                        </h3>
+
+                        <p>
+                            ${item.address}
+                        </p>
+
+                        <p>
+                            📍 ${distanceText}
+                        </p>
+
+                        <p class="${stockClass}">
+                            ${stockText}
+                        </p>
+
+                        <p>
+                            Quantity:
+                            ${item.stock}
+                        </p>
+
+                    </div>
+
+                `;
+
+                const marker =
+                    L.marker([
+                        item.latitude,
+                        item.longitude
+                    ]).addTo(map);
+
+                marker.bindPopup(`
+
+                    <b>
+                        ${item.pharmacy}
+                    </b>
+
+                    <br>
+
+                    📍 ${distanceText}
+
+                    <br>
+
+                    ${stockText}
+
+                    <br>
+
+                    Quantity:
+                    ${item.stock}
+
+                `);
+
+                markers.push(marker);
+
+            });
+
+            map.setView(
+                [
+                    data[0].latitude,
+                    data[0].longitude
+                ],
+                14
+            );
+
+        }
+
+    </script>
+
+</body>
+</html>
