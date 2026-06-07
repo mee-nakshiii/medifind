@@ -100,6 +100,11 @@
             border-radius: 12px;
         }
 
+        #history p {
+            margin: 5px 0;
+            color: #555;
+        }
+
     </style>
 
 </head>
@@ -124,6 +129,12 @@
             <button onclick="searchMedicine()">
                 Search
             </button>
+
+            <hr>
+
+            <h3>Recent Searches</h3>
+
+            <div id="history"></div>
 
         </div>
 
@@ -239,6 +250,32 @@
             return R * c;
         }
 
+        function loadHistory() {
+
+            const historyDiv =
+                document.getElementById(
+                    "history"
+                );
+
+            const history =
+                JSON.parse(
+                    localStorage.getItem(
+                        "searchHistory"
+                    )
+                ) || [];
+
+            historyDiv.innerHTML = "";
+
+            history.forEach(item => {
+
+                historyDiv.innerHTML += `
+                    <p>${item}</p>
+                `;
+
+            });
+
+        }
+
         async function searchMedicine() {
 
             const medicine =
@@ -255,6 +292,35 @@
                 return;
             }
 
+            let history =
+                JSON.parse(
+                    localStorage.getItem(
+                        "searchHistory"
+                    )
+                ) || [];
+
+            history.unshift(medicine);
+
+            history = history.slice(0, 5);
+
+            localStorage.setItem(
+                "searchHistory",
+                JSON.stringify(history)
+            );
+
+            loadHistory();
+
+            const resultsDiv =
+                document.getElementById(
+                    "results"
+                );
+
+            resultsDiv.innerHTML = `
+                <div class="card">
+                    <h3>Searching pharmacies...</h3>
+                </div>
+            `;
+
             const response =
                 await fetch(
                     `http://127.0.0.1:5000/api/search?medicine=${medicine}`
@@ -263,10 +329,34 @@
             const data =
                 await response.json();
 
-            const resultsDiv =
-                document.getElementById(
-                    "results"
-                );
+            if (
+                userLat !== null &&
+                userLon !== null
+            ) {
+
+                data.sort((a, b) => {
+
+                    const distanceA =
+                        calculateDistance(
+                            userLat,
+                            userLon,
+                            a.latitude,
+                            a.longitude
+                        );
+
+                    const distanceB =
+                        calculateDistance(
+                            userLat,
+                            userLon,
+                            b.latitude,
+                            b.longitude
+                        );
+
+                    return distanceA - distanceB;
+
+                });
+
+            }
 
             resultsDiv.innerHTML = "";
 
@@ -326,17 +416,11 @@
 
                     <div class="card">
 
-                        <h3>
-                            ${item.pharmacy}
-                        </h3>
+                        <h3>${item.pharmacy}</h3>
 
-                        <p>
-                            ${item.address}
-                        </p>
+                        <p>${item.address}</p>
 
-                        <p>
-                            📍 ${distanceText}
-                        </p>
+                        <p>📍 ${distanceText}</p>
 
                         <p class="${stockClass}">
                             ${stockText}
@@ -359,9 +443,7 @@
 
                 marker.bindPopup(`
 
-                    <b>
-                        ${item.pharmacy}
-                    </b>
+                    <b>${item.pharmacy}</b>
 
                     <br>
 
@@ -391,6 +473,8 @@
             );
 
         }
+
+        loadHistory();
 
     </script>
 
