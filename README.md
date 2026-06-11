@@ -31,3 +31,17 @@ https://mee-nakshiii.github.io/medifind/
 
 Backend:
 https://medifind-backend-sn9d.onrender.com/
+
+## Screenshots
+
+### Home Page
+
+![Home Page](screenshots/home.png)
+
+### Search Results
+
+![Search Results](screenshots/search-results.png)
+
+### Map View
+
+![Map View](screenshots/map-view.png)
